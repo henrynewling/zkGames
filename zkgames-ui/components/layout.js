@@ -1,4 +1,3 @@
-import Header from "./header";
 import Footer from "./footer";
 import Head from "next/head";
 import Script from "next/script";
@@ -6,10 +5,18 @@ import { Provider as WagmiProvider } from "wagmi";
 import { providers } from "ethers";
 
 import networks from "../utils/networks.json";
+import dynamic from "next/dynamic";
 
 // Provider that will be used when no wallet is connected (aka no signer)
 const provider = providers.getDefaultProvider(
   networks[networks.selectedChain].rpcUrls[0]
+);
+
+const Header = dynamic(
+  () => {
+    return import("./header");
+  },
+  { ssr: false }
 );
 
 export default function Layout({ children }) {

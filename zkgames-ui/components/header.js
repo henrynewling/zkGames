@@ -3,11 +3,20 @@ import { useAccount, useConnect, useNetwork } from "wagmi";
 import networks from "../utils/networks.json";
 
 import { switchNetwork } from "../utils/switchNetwork";
+import { getWalletAddress } from "../helpers/getWalletAddress";
+import { useContext } from "react";
+import { StoreContext } from "../store/useStore";
+import { getShortenAddress } from "../helpers/getShortenAddress";
+import actions from "../store/action";
 
 export default function Header() {
   const [connectQuery, connect] = useConnect();
   const [accountQuery, disconnect] = useAccount();
   const [{ data, error, loading }] = useNetwork();
+
+  const { state, dispatch } = useContext(StoreContext);
+  console.log(state, ':state')
+  const { walletAddress } = state;
 
   const truncateRegex = /^(0x[a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
   const truncateEthAddress = (address) => {
@@ -15,6 +24,23 @@ export default function Header() {
     if (!match) return address;
     return `${match[1]}…${match[2]}`;
   };
+
+  const handleWalletConnect = async () => {
+    let addr = await getWalletAddress();
+    console.log(typeof addr)
+    dispatch({
+        type: actions.SET_WALLETADDRESS,
+        payload: addr
+    });
+};
+
+
+const disconnectIconWallet = () => {
+  dispatch({
+    type: actions.SET_WALLETADDRESS,
+    payload: null,
+});
+}
 
   // const switchNetwork = async () => {
   //   if (window.ethereum) {
@@ -62,39 +88,23 @@ export default function Header() {
   // };
 
   const renderConnectWallet = () => {
-    if (!accountQuery.data?.address) {
+    if (!walletAddress) {
       return (
         <button
           className="text-lg font-medium rounded-md px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500"
-          onClick={() => {
-            connect(connectQuery.data.connectors[0]);
-          }}
+          onClick={handleWalletConnect}
         >
           Connect Wallet
         </button>
       );
-    } else if (
-      accountQuery.data?.address &&
-      data.chain.id.toString() !== networks.selectedChain
-    ) {
-      return (
-        <button
-          className="text-lg font-medium rounded-md px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500"
-          onClick={() => {
-            switchNetwork();
-          }}
-        >
-          Switch Network
-        </button>
-      );
-    } else {
+    }  else {
       return (
         <div className="flex flex-wrap gap-5 justify-center items-center">
           <div className="p-3 bg-slate-700 text-lg font-medium rounded-md">
-            <span>{truncateEthAddress(accountQuery.data?.address)}</span>
+            <span>{getShortenAddress(walletAddress, 6)}</span>
           </div>
           <button
-            onClick={disconnect}
+            onClick={disconnectIconWallet}
             className="text-lg font-medium rounded-md px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500"
           >
             Disconnect

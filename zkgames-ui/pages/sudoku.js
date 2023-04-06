@@ -1,5 +1,5 @@
 import Board from "../components/sudoku/board";
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import NumbersKeyboard from "../components/sudoku/numbersKeyboard";
 import Head from "next/head";
 import GoBack from "../components/goBack";
@@ -23,6 +23,13 @@ import { sudokuCalldata } from "../zkproof/sudoku/snarkjsSudoku";
 import contractAddress from "../utils/contractaddress.json";
 
 import sudokuContractAbi from "../utils/abiFiles/Sudoku/Sudoku.json";
+
+import IconService from 'icon-sdk-js';
+import { StoreContext } from "../store/useStore";
+import BigNumber from 'bignumber.js';
+
+const provider = new IconService.HttpProvider(networks['39'].rpcUrls[0]);
+const iconService = new IconService(provider);
 
 let sudokuBoolInitialTemp = [
   [false, false, false, false, false, false, false, false, false],
@@ -52,21 +59,24 @@ export default function Sudoku() {
   const [loadingVerifyAndMintBtn, setLoadingVerifyAndMintBtn] = useState(false);
   const [loadingStartGameBtn, setLoadingStartGameBtn] = useState(false);
 
-  const [signer] = useSigner();
+  const { state, dispatch } = useContext(StoreContext)
+  const { walletAddress } = state
 
-  const provider = useProvider();
+  // const [signer] = useSigner();
 
-  const contract = useContract({
-    addressOrName: contractAddress.sudokuContract,
-    contractInterface: sudokuContractAbi.abi,
-    signerOrProvider: signer.data || provider,
-  });
+  // const provider = useProvider();
 
-  const contractNoSigner = useContract({
-    addressOrName: contractAddress.sudokuContract,
-    contractInterface: sudokuContractAbi.abi,
-    signerOrProvider: provider,
-  });
+  // const contract = useContract({
+  //   addressOrName: contractAddress.sudokuContract,
+  //   contractInterface: sudokuContractAbi.abi,
+  //   signerOrProvider: signer.data || provider,
+  // });
+
+  // const contractNoSigner = useContract({
+  //   addressOrName: contractAddress.sudokuContract,
+  //   contractInterface: sudokuContractAbi.abi,
+  //   signerOrProvider: provider,
+  // });
 
   const updatePosition = (number) => {
     if (selectedPosition.length > 0) {
@@ -216,26 +226,37 @@ export default function Sudoku() {
     }
   };
 
+  const contractFunctionCallHelper = async (scoreAddr, method, params, url) => {
+    const provider = new IconService.HttpProvider(url ?? null);
+    const iconService = new IconService(provider);
+  
+    const callObj = new IconService.IconBuilder.CallBuilder().to(scoreAddr).method(method).params(params).build();
+    return await iconService.call(callObj).execute();
+  };
+
   const initializeBoard = async () => {
     try {
       let board;
 
       if (
-        accountQuery.data?.address &&
-        data.chain.id.toString() === networks.selectedChain
+        walletAddress
       ) {
-        board = await contract.generateSudokuBoard(new Date().toString());
-      } else {
-        board = await contractNoSigner.generateSudokuBoard(
-          new Date().toString()
-        );
-      }
+        board = await contractFunctionCallHelper(contractAddress.sudokuContract, 'generateSudokuBoard', {  stringTime: new Date().toString() }, networks[`${networks.selectedChain}`].rpcUrls[0]);
+      } 
 
       console.log("result", board);
+      let numBoard = board?.map((item, idx) => {
+        let itemNum = item?.map((hexNum) => {
+          let toDec = new BigNumber(hexNum).toNumber()
+          return toDec
+        })
+        return itemNum
+      })
 
-      setSudokuInitial(board);
 
-      let newArray = board.map((arr) => {
+      setSudokuInitial(numBoard);
+
+      let newArray = numBoard.map((arr) => {
         return arr.slice();
       });
       setSudoku(newArray);
@@ -251,9 +272,9 @@ export default function Sudoku() {
         [false, false, false, false, false, false, false, false, false],
         [false, false, false, false, false, false, false, false, false],
       ];
-      for (let i = 0; i < board.length; i++) {
-        for (let j = 0; j < board.length; j++) {
-          if (board[i][j] === 0) {
+      for (let i = 0; i < numBoard.length; i++) {
+        for (let j = 0; j < numBoard.length; j++) {
+          if (numBoard[i][j] === 0) {
             temp[i][j] = true;
           }
         }

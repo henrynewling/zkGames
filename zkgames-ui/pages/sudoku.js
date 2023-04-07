@@ -62,6 +62,8 @@ export default function Sudoku() {
   const { state, dispatch } = useContext(StoreContext)
   const { walletAddress } = state
 
+  const { IconConverter } = IconService;
+
   // const [signer] = useSigner();
 
   // const provider = useProvider();
@@ -88,40 +90,54 @@ export default function Sudoku() {
     }
   };
 
+  const convertToBigInt = (elem) => {
+    if (Array.isArray(elem)) {
+        return elem.map(convertToBigInt);
+    } else {
+        return  IconConverter.toHex(elem)
+    }
+  };
+
   const calculateProof = async () => {
     setLoadingVerifyBtn(true);
     console.log("sudokuInitial", sudokuInitial);
     console.log("sudoku", sudoku);
     let calldata = await sudokuCalldata(sudokuInitial, sudoku);
+    console.log(calldata, ':call')
+
+    
 
     if (!calldata) {
       setLoadingVerifyBtn(false);
       return "Invalid inputs to generate witness.";
     }
 
+    const bigIntCallData = convertToBigInt(calldata);
+
     // console.log("calldata", calldata);
 
     try {
       let result;
       if (
-        accountQuery.data?.address &&
-        data.chain.id.toString() === networks.selectedChain
+        walletAddress
       ) {
-        result = await contract.verifySudoku(
-          calldata[0],
-          calldata[1],
-          calldata[2],
-          calldata[3]
-        );
-      } else {
-        result = await contractNoSigner.verifySudoku(
-          calldata[0],
-          calldata[1],
-          calldata[2],
-          calldata[3]
-        );
-      }
+        // result = await contract.verifySudoku(
+        //   calldata[0],
+        //   calldata[1],
+        //   calldata[2],
+        //   calldata[3]
+        // );
+        let verifyParams = {
+          "a" : bigIntCallData[0],
+          "b" : bigIntCallData[1],
+          "c" : bigIntCallData[2],
+          "input" : bigIntCallData[3].map((item) => '0x' + item.padStart(64, '0'))
+        }
+        result = await contractFunctionCallHelper(contractAddress.sudokuContract, 'verifySudoku', verifyParams, networks[`${networks.selectedChain}`].rpcUrls[0])
+        console.log(result, ':res')
+      } 
       console.log("result", result);
+      if(!result) throw ('Error')
       setLoadingVerifyBtn(false);
       alert("Successfully verified");
     } catch (error) {
@@ -131,7 +147,7 @@ export default function Sudoku() {
   };
 
   const verifySudoku = async () => {
-    console.log("Address", accountQuery.data?.address);
+    // console.log("Address", accountQuery.data?.address);
     calculateProof();
   };
 
@@ -227,11 +243,19 @@ export default function Sudoku() {
   };
 
   const contractFunctionCallHelper = async (scoreAddr, method, params, url) => {
-    const provider = new IconService.HttpProvider(url ?? null);
-    const iconService = new IconService(provider);
+    try {
+      const provider = new IconService.HttpProvider(url ?? null);
+      const iconService = new IconService(provider);
   
-    const callObj = new IconService.IconBuilder.CallBuilder().to(scoreAddr).method(method).params(params).build();
-    return await iconService.call(callObj).execute();
+      const callObj = new IconService.IconBuilder.CallBuilder().to(scoreAddr).method(method).params(params).build();
+      console.log(callObj, ':callObj')
+      let res =  await iconService.call(callObj).execute();
+      console.log(res)
+      return res
+    } catch (error) {
+      console.log(error)
+    }
+    
   };
 
   const initializeBoard = async () => {
